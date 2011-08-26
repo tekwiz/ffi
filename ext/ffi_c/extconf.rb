@@ -7,7 +7,7 @@ if !defined?(RUBY_ENGINE) || RUBY_ENGINE == "ruby"
   
   if pkg_config("libffi") ||
      have_header("ffi.h") ||
-     find_header("ffi.h", "/usr/local/include")
+     find_header("ffi.h", "/usr/local/include", "c:/mingw/local/include")
   else
     puts <<-EOL
       Cannot find the include file <ffi.h>. Please specify its location by using one
@@ -26,7 +26,8 @@ if !defined?(RUBY_ENGINE) || RUBY_ENGINE == "ruby"
   
   # We need at least ffi_call and ffi_prep_closure
   libffi_ok = have_library("ffi", "ffi_call", [ "ffi.h" ]) ||
-              have_library("libffi", "ffi_call", [ "ffi.h" ])
+              have_library("libffi", "ffi_call", [ "ffi.h" ]) ||
+              find_library("libffi", "ffi_call", "c:/mingw/local/lib")
   libffi_ok &&= have_func("ffi_prep_closure")
 
   unless libffi_ok
