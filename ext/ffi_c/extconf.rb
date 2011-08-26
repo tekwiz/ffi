@@ -14,9 +14,14 @@ if !defined?(RUBY_ENGINE) || RUBY_ENGINE == "ruby"
       of the following options:
 
       --with-ffi_c-dir=/path/to/ffi
-      --with-ffi_c-lib=/path/to/ffi/include
+      --with-ffi_c-include=/path/to/ffi/include
     EOL
     exit 1
+  end
+
+  if RbConfig::CONFIG['host_os'].match(/mswin/i)
+    find_header("stdbool.h", "./msvc")
+    find_header("sys/param.h", "./msvc")
   end
   
   # We need at least ffi_call and ffi_prep_closure
