@@ -4,10 +4,16 @@ if !defined?(RUBY_ENGINE) || RUBY_ENGINE == "ruby"
   require 'mkmf'
   require 'rbconfig'
   dir_config("ffi_c")
-  
+
+  if RbConfig::CONFIG['host_os'].match(/mswin/i)
+    header_search_paths = ["c:/mingw/local/include"]
+  else
+    header_search_paths = ["/usr/include", "/usr/include/ffi", "/usr/local/include", "/usr/local/include/ffi"]
+  end
+
   if pkg_config("libffi") ||
      have_header("ffi.h") ||
-     find_header("ffi.h", "/usr/local/include", "c:/mingw/local/include")
+     find_header("ffi.h", *header_search_paths)
   else
     puts <<-EOL
       Cannot find the include file <ffi.h>. Please specify its location by using one
