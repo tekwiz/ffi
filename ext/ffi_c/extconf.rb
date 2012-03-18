@@ -5,15 +5,14 @@ if !defined?(RUBY_ENGINE) || RUBY_ENGINE == "ruby"
   require 'rbconfig'
   dir_config("ffi_c")
 
-  if RbConfig::CONFIG['host_os'].match(/mswin/i)
+  if ENV['RUBY_CC_VERSION'].nil? && (pkg_config("libffi") ||
     header_search_paths = ["c:/mingw/local/include"]
   else
     header_search_paths = ["/usr/include", "/usr/include/ffi", "/usr/local/include", "/usr/local/include/ffi"]
   end
 
-  if pkg_config("libffi") ||
      have_header("ffi.h") ||
-     find_header("ffi.h", *header_search_paths)
+     find_header("ffi.h", "/usr/local/include"))
   else
     puts <<-EOL
       Cannot find the include file <ffi.h>. Please specify its location by using one
@@ -62,9 +61,10 @@ if !defined?(RUBY_ENGINE) || RUBY_ENGINE == "ruby"
   create_header
   
   $CFLAGS << " -mwin32 " if RbConfig::CONFIG['host_os'] =~ /cygwin/
+  $LOCAL_LIBS << " ./libffi/.libs/libffi_convenience.lib" if RbConfig::CONFIG['host_os'] =~ /mswin/
   #$CFLAGS << " -Werror -Wunused -Wformat -Wimplicit -Wreturn-type "
   if (ENV['CC'] || RbConfig::MAKEFILE_CONFIG['CC'])  =~ /gcc/
-    $CFLAGS << " -Wno-declaration-after-statement "
+#    $CFLAGS << " -Wno-declaration-after-statement "
   end
   
   create_makefile("ffi_c")
@@ -75,7 +75,11 @@ if !defined?(RUBY_ENGINE) || RUBY_ENGINE == "ruby"
         mf.puts "include ${srcdir}/libffi.darwin.mk"
       elsif RbConfig::CONFIG['host_os'].downcase =~ /bsd/
         mf.puts '.include "${srcdir}/libffi.bsd.mk"'
-      elsif RbConfig::CONFIG['host_os'] !~ /mswin32|mingw32/
+      elsif RbConfig::CONFIG['host_os'].downcase =~ /mswin64/
+        mf.puts '!include $(srcdir)/libffi.vc64.mk'
+      elsif RbConfig::CONFIG['host_os'].downcase =~ /mswin32/
+        mf.puts '!include $(srcdir)/libffi.vc.mk'
+      else
         mf.puts "include ${srcdir}/libffi.mk"
       end
     end

@@ -18,8 +18,16 @@
  * version 3 along with this work.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _MSC_VER
 #include <stdbool.h>
+#else
+typedef int bool;
+#define true 1
+#define false 0
+#endif
+#ifndef _MSC_VER
 #include <stdint.h>
+#endif
 #include <limits.h>
 #include <ruby.h>
 #include "rbffi.h"
@@ -68,6 +76,17 @@ ptr_allocate(VALUE klass)
     return obj;
 }
 
+/*
+ * @overload initialize(pointer)
+ *  @param [Pointer] pointer another pointer to initialize from
+ *  Create a new pointer from another {Pointer}.
+ * @overload initialize(type, address)
+ *  @param [Type] type type for pointer
+ *  @param [Integer] address base address for pointer
+ *  Create a new pointer from a {Type} and a base adresse
+ * @return [self]
+ * A new instance of Pointer.
+ */
 static VALUE
 ptr_initialize(int argc, VALUE* argv, VALUE self)
 {
@@ -117,6 +136,16 @@ ptr_initialize(int argc, VALUE* argv, VALUE self)
     return self;
 }
 
+/*
+ * call-seq: ptr.initialize_copy(other)
+ * @param [Pointer] other source for cloning or dupping
+ * @return [self]
+ * @raise {RuntimeError} if +other+ is an unbounded memory area, or is unreable/unwritable
+ * @raise {NoMemError} if failed to allocate memory for new object
+ * DO NOT CALL THIS METHOD.
+ *
+ * This method is internally used by #dup and #clone. Memory contents is copied from +other+.
+ */
 static VALUE
 ptr_initialize_copy(VALUE self, VALUE other)
 {
@@ -179,6 +208,13 @@ slice(VALUE self, long offset, long size)
     return retval;
 }
 
+/* 
+ * Document-method: +
+ * call-seq: ptr + offset
+ * @param [Numeric] offset
+ * @return [Pointer]
+ * Return a new {Pointer} from an existing pointer and an +offset+.
+ */
 static VALUE
 ptr_plus(VALUE self, VALUE offset)
 {
@@ -190,12 +226,25 @@ ptr_plus(VALUE self, VALUE offset)
     return slice(self, off, ptr->size == LONG_MAX ? LONG_MAX : ptr->size - off);
 }
 
+/*
+ * call-seq: ptr.slice(offset, length)
+ * @param [Numeric] offset
+ * @param [Numeric] length
+ * @return [Pointer]
+ * Return a new {Pointer} from an existing one. This pointer points on same contents 
+ * from +offset+ for a length +length+.
+ */
 static VALUE
 ptr_slice(VALUE self, VALUE rbOffset, VALUE rbLength)
 {
     return slice(self, NUM2LONG(rbOffset), NUM2LONG(rbLength));
 }
 
+/*
+ * call-seq: ptr.inspect
+ * @return [String]
+ * Inspect pointer object.
+ */
 static VALUE
 ptr_inspect(VALUE self)
 {
@@ -214,6 +263,12 @@ ptr_inspect(VALUE self)
     return rb_str_new2(buf);
 }
 
+/*
+ * Document-method: null?
+ * call-seq: ptr.null?
+ * @return [Boolean]
+ * Return +true+ if +self+ is a {NULL} pointer.
+ */
 static VALUE
 ptr_null_p(VALUE self)
 {
@@ -224,6 +279,12 @@ ptr_null_p(VALUE self)
     return ptr->memory.address == NULL ? Qtrue : Qfalse;
 }
 
+/*
+ * Document-method: ==
+ * call-seq: ptr == other
+ * @param [Pointer] other
+ * Check equality between +self+ and +other+. Equality is tested on {#address}.
+ */
 static VALUE
 ptr_equals(VALUE self, VALUE other)
 {
@@ -231,9 +292,18 @@ ptr_equals(VALUE self, VALUE other)
     
     Data_Get_Struct(self, Pointer, ptr);
 
+    if (NIL_P(other)) {
+        return ptr->memory.address == NULL ? Qtrue : Qfalse;
+    }
+
     return ptr->memory.address == POINTER(other)->address ? Qtrue : Qfalse;
 }
 
+/*
+ * call-seq: ptr.address
+ * @return [Numeric] pointer's base address
+ * Return +self+'s base address (alias: #to_i).
+ */
 static VALUE
 ptr_address(VALUE self)
 {
@@ -250,6 +320,15 @@ ptr_address(VALUE self)
 # define SWAPPED_ORDER LITTLE_ENDIAN
 #endif
 
+/*
+ * Get or set +self+'s endianness
+ * @overload ptr.order
+ *  @return [:big, :little] endianness of +self+
+ * @overload ptr.order(order)
+ *  @param  [Symbol] order endianness to set (+:little+, +:big+ or +:network+). +:big+ and +:network+ 
+ *   are synonymous.
+ *  @return [self]
+ */
 static VALUE
 ptr_order(int argc, VALUE* argv, VALUE self)
 {
@@ -289,6 +368,11 @@ ptr_order(int argc, VALUE* argv, VALUE self)
 }
 
 
+/*
+ * call-seq: ptr.free
+ * @return [self]
+ * Free memory pointed by +self+.
+ */
 static VALUE
 ptr_free(VALUE self)
 {
@@ -302,11 +386,22 @@ ptr_free(VALUE self)
             ptr->storage = NULL;
         }
         ptr->allocated = false;
+
+    } else {
+        VALUE caller = rb_funcall(rb_funcall(Qnil, rb_intern("caller"), 0), rb_intern("first"), 0);
+        
+        rb_warn("calling free on non allocated pointer %s from %s", RSTRING_PTR(ptr_inspect(self)), RSTRING_PTR(rb_str_to_str(caller)));
     }
 
     return self;
 }
 
+/*
+ * call-seq: ptr.autorelease = autorelease
+ * @param [Boolean] autorelease
+ * @return [Boolean] +autorelease+
+ * Set +autorelease+ attribute. See also Autorelease section.
+ */
 static VALUE
 ptr_autorelease(VALUE self, VALUE autorelease)
 {
@@ -318,6 +413,11 @@ ptr_autorelease(VALUE self, VALUE autorelease)
     return autorelease;
 }
 
+/*
+ * call-seq: ptr.autorelease?
+ * @return [Boolean]
+ * Get +autorelease+ attribute. See also Autorelease section.
+ */
 static VALUE
 ptr_autorelease_p(VALUE self)
 {
@@ -350,7 +450,19 @@ rbffi_Pointer_Init(VALUE moduleFFI)
 {
     VALUE rbNullAddress = ULL2NUM(0);
 
+    /* 
+     * Document-class: FFI::Pointer < FFI::AbstractMemory
+     * Pointer class is used to manage C pointers with ease. A {Pointer} object is defined by his
+     * {#address} (as a C pointer). It permits additions with an integer for pointer arithmetic.
+     *
+     * ==Autorelease
+     * A pointer object may autorelease his contents when freed (by default). This behaviour may be
+     * changed with {#autorelease=} method.
+     */
     rbffi_PointerClass = rb_define_class_under(moduleFFI, "Pointer", rbffi_AbstractMemoryClass);
+    /*
+     * Document-variable: Pointer
+     */
     rb_global_variable(&rbffi_PointerClass);
 
     rb_define_alloc_func(rbffi_PointerClass, ptr_allocate);
@@ -370,6 +482,9 @@ rbffi_Pointer_Init(VALUE moduleFFI)
     rb_define_method(rbffi_PointerClass, "free", ptr_free, 0);
 
     rbffi_NullPointerSingleton = rb_class_new_instance(1, &rbNullAddress, rbffi_PointerClass);
+    /*
+     * NULL pointer
+     */
     rb_define_const(rbffi_PointerClass, "NULL", rbffi_NullPointerSingleton);
 }
 

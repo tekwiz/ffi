@@ -20,11 +20,19 @@
  * version 3 along with this work.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _MSC_VER
 #include <sys/param.h>
+#endif
 #include <sys/types.h>
 #include <stdio.h>
+#ifndef _MSC_VER
 #include <stdint.h>
 #include <stdbool.h>
+#else
+typedef int bool;
+#define true 1
+#define false 0
+#endif
 #include <errno.h>
 #include <ruby.h>
 #if defined(HAVE_NATIVETHREAD) && defined(HAVE_RB_THREAD_BLOCKING_REGION) && !defined(_WIN32)
@@ -44,6 +52,7 @@
 #include "Call.h"
 #include "MappedType.h"
 #include "Thread.h"
+#include "LongDouble.h"
 
 #ifdef USE_RAW
 #  ifndef __i386__
@@ -58,6 +67,7 @@
 #define FLOAT32_ADJ (4)
 #define FLOAT64_ADJ (8)
 #define ADDRESS_ADJ (sizeof(void *))
+#define LONGDOUBLE_ADJ (ffi_type_longdouble.alignment)
 
 #endif /* USE_RAW */
 
@@ -203,6 +213,12 @@ rbffi_SetupCallParams(int argc, VALUE* argv, int paramCount, Type** paramTypes,
                 ++argidx;
                 break;
 
+            case NATIVE_LONGDOUBLE:
+                param->ld = rbffi_num2longdouble(argv[argidx]);
+                ADJ(param, LONGDOUBLE);
+                ++argidx;
+                break;
+
 
             case NATIVE_STRING:
                 param->ptr = getString(argv[argidx++], type);
@@ -329,7 +345,6 @@ rbffi_CallFunction(int argc, VALUE* argv, void* function, FunctionType* fnInfo)
         oldThread = rbffi_active_thread;
         rbffi_active_thread = rbffi_thread_self();
 #endif
-        retval = alloca(MAX(fnInfo->ffi_cif.rtype->size, FFI_SIZEOF_ARG));
         ffi_call(&fnInfo->ffi_cif, FFI_FN(function), retval, ffiValues);
 
 #if !defined(HAVE_RUBY_THREAD_HAS_GVL_P)

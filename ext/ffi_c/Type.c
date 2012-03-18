@@ -16,7 +16,10 @@
  * version 3 along with this work.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _MSC_VER
 #include <sys/param.h>
+#endif
+
 #include <sys/types.h>
 #include <ruby.h>
 #include <ffi.h>
@@ -51,6 +54,12 @@ type_allocate(VALUE klass)
     return obj;
 }
 
+/*
+ * Document-method: initialize
+ * call-seq: initialize(value)
+ * @param [Fixnum,Type] value
+ * @return [self]
+ */
 static VALUE
 type_initialize(VALUE self, VALUE value)
 {
@@ -72,6 +81,11 @@ type_initialize(VALUE self, VALUE value)
     return self;
 }
 
+/*
+ * call-seq: type.size
+ * @return [Fixnum]
+ * Return type's size, in bytes.
+ */
 static VALUE
 type_size(VALUE self)
 {
@@ -82,6 +96,10 @@ type_size(VALUE self)
     return INT2FIX(type->ffiType->size);
 }
 
+/*
+ * call-seq: type.alignment
+ * @return [Fixnum]
+ */
 static VALUE
 type_alignment(VALUE self)
 {
@@ -92,6 +110,11 @@ type_alignment(VALUE self)
     return INT2FIX(type->ffiType->alignment);
 }
 
+/*
+ * call-seq: type.inspect
+ * @return [String]
+ * Inspect {Type} object.
+ */
 static VALUE
 type_inspect(VALUE self)
 {
@@ -128,6 +151,11 @@ builtin_type_free(BuiltinType *type)
     xfree(type);
 }
 
+/*
+ * call-seq: type.inspect
+ * @return [String]
+ * Inspect {Type::Builtin} object.
+ */
 static VALUE
 builtin_type_inspect(VALUE self)
 {
@@ -216,8 +244,18 @@ void
 rbffi_Type_Init(VALUE moduleFFI)
 {
     VALUE moduleNativeType;
-    VALUE classType = rbffi_TypeClass = rb_define_class_under(moduleFFI, "Type", rb_cObject);
+    /*
+     * Document-class: FFI::Type
+     * This class manages C types.
+     *
+     * It embbed {FFI::Type::Builtin} objects as constants (for names,
+     * see {FFI::NativeType}).
+     */
+    rbffi_TypeClass = rb_define_class_under(moduleFFI, "Type", rb_cObject);
 
+    /*
+     * Document-constant: FFI::TypeDefs
+     */
     rb_define_const(moduleFFI, "TypeDefs", typeMap = rb_hash_new());
     rb_define_const(moduleFFI, "SizeTypes", sizeMap = rb_hash_new());
     rb_global_variable(&typeMap);
@@ -226,19 +264,62 @@ rbffi_Type_Init(VALUE moduleFFI)
     id_type_size = rb_intern("type_size");
     id_size = rb_intern("size");
 
-
+    /*
+     * Document-class: FFI::Type::Builtin
+     * Class for Built-in types.
+     */
     classBuiltinType = rb_define_class_under(rbffi_TypeClass, "Builtin", rbffi_TypeClass);
+    /*
+     * Document-module: FFI::NativeType
+     * This module defines constants for native (C) types.
+     *
+     * ==Native type constants
+     * Native types are defined by constants :
+     * * INT8, SCHAR, CHAR
+     * * UINT8, UCHAR
+     * * INT16, SHORT, SSHORT
+     * * UINT16, USHORT
+     * * INT32,, INT, SINT
+     * * UINT32, UINT
+     * * INT64, LONG_LONG, SLONG_LONG
+     * * UINT64, ULONG_LONG
+     * * LONG, SLONG
+     * * ULONG
+     * * FLOAT32, FLOAT
+     * * FLOAT64, DOUBLE
+     * * POINTER
+     * * CALLBACK
+     * * FUNCTION
+     * * CHAR_ARRAY
+     * * BOOL
+     * * STRING (immutable string, nul terminated)
+     * * STRUCT (struct-b-value param or result)
+     * * ARRAY (array type definition)
+     * * MAPPED (custom native type)
+     * For function return type only :
+     * * VOID
+     * For function argument type only :
+     * * BUFFER_IN
+     * * BUFFER_OUT
+     * * VARARGS (function takes a variable number of arguments)
+     *
+     * All these constants are exported to {FFI} module prefixed with "TYPE_". 
+     * They are objets from {FFI::Type::Builtin} class.
+     */
     moduleNativeType = rb_define_module_under(moduleFFI, "NativeType");
 
+    /*
+     * Document-global: FFI::Type
+     */
     rb_global_variable(&rbffi_TypeClass);
     rb_global_variable(&classBuiltinType);
     rb_global_variable(&moduleNativeType);
 
-    rb_define_alloc_func(classType, type_allocate);
-    rb_define_method(classType, "initialize", type_initialize, 1);
-    rb_define_method(classType, "size", type_size, 0);
-    rb_define_method(classType, "alignment", type_alignment, 0);
-    rb_define_method(classType, "inspect", type_inspect, 0);
+    rb_define_alloc_func(rbffi_TypeClass, type_allocate);
+    rb_define_method(rbffi_TypeClass, "initialize", type_initialize, 1);
+    rb_define_method(rbffi_TypeClass, "size", type_size, 0);
+    rb_define_method(rbffi_TypeClass, "alignment", type_alignment, 0);
+    rb_define_method(rbffi_TypeClass, "inspect", type_inspect, 0);
 
     // Make Type::Builtin non-allocatable
     rb_undef_method(CLASS_OF(classBuiltinType), "new");
@@ -250,16 +331,19 @@ rbffi_Type_Init(VALUE moduleFFI)
     // Define all the builtin types
     #define T(x, ffiType) do { \
         VALUE t = Qnil; \
-        rb_define_const(classType, #x, t = builtin_type_new(classBuiltinType, NATIVE_##x, ffiType, #x)); \
+        rb_define_const(rbffi_TypeClass, #x, t = builtin_type_new(classBuiltinType, NATIVE_##x, ffiType, #x)); \
         rb_define_const(moduleNativeType, #x, t); \
         rb_define_const(moduleFFI, "TYPE_" #x, t); \
     } while(0)
 
     #define A(old_type, new_type) do { \
-        VALUE t = rb_const_get(classType, rb_intern(#old_type)); \
-        rb_const_set(classType, rb_intern(#new_type), t); \
+        VALUE t = rb_const_get(rbffi_TypeClass, rb_intern(#old_type)); \
+        rb_const_set(rbffi_TypeClass, rb_intern(#new_type), t); \
     } while(0)
 
+    /*
+     * Document-constant: FFI::Type::Builtin::VOID
+     */
     T(VOID, &ffi_type_void);
     T(INT8, &ffi_type_sint8);
     A(INT8, SCHAR);
@@ -289,6 +373,7 @@ rbffi_Type_Init(VALUE moduleFFI)
     A(FLOAT32, FLOAT);
     T(FLOAT64, &ffi_type_double);
     A(FLOAT64, DOUBLE);
+    T(LONGDOUBLE, &ffi_type_longdouble);
     T(POINTER, &ffi_type_pointer);
     T(STRING, &ffi_type_pointer);
     T(BUFFER_IN, &ffi_type_pointer);

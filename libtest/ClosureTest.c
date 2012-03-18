@@ -96,7 +96,7 @@ void testThreadedClosureVrV(void (*closure)(void), int n)
     pthread_create(&t, NULL, threadVrV, &arg);
     pthread_join(t, NULL);
 #else
-    HANDLE hThread = (HANDLE) _beginthread(threadVrV, 0, &arg);
+    HANDLE hThread = (HANDLE) _beginthread((void (*)(void *))threadVrV, 0, &arg);
     WaitForSingleObject(hThread, INFINITE);	
 #endif
 }

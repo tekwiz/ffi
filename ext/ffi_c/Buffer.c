@@ -18,8 +18,16 @@
  * version 3 along with this work.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _MSC_VER
 #include <stdbool.h>
+#else
+typedef int bool;
+#define true 1
+#define false 0
+#endif
+#ifndef _MSC_VER
 #include <stdint.h>
+#endif
 #include <limits.h>
 #include <ruby.h>
 #include "rbffi.h"
@@ -69,6 +77,15 @@ buffer_release(Buffer* ptr)
     xfree(ptr);
 }
 
+/*
+ * call-seq: initialize(size, count=1, clear=false)
+ * @param [Integer, Symbol, #size] Type or size in bytes of a buffer cell
+ * @param [Fixnum] count number of cell in the Buffer
+ * @param [Boolean] clear if true, set the buffer to all-zero
+ * @return [self]
+ * @raise {NoMemoryError} if failed to allocate memory for Buffer
+ * A new instance of Buffer.
+ */
 static VALUE
 buffer_initialize(int argc, VALUE* argv, VALUE self)
 {
@@ -108,6 +125,11 @@ buffer_initialize(int argc, VALUE* argv, VALUE self)
     return self;
 }
 
+/*
+ * call-seq: initialize_copy(other)
+ * @return [self]
+ * DO NOT CALL THIS METHOD.
+ */
 static VALUE
 buffer_initialize_copy(VALUE self, VALUE other)
 {
@@ -161,6 +183,12 @@ slice(VALUE self, long offset, long len)
     return obj;
 }
 
+/*
+ * call-seq: + offset
+ * @param [Numeric] offset
+ * @return [Buffer] a new instance of Buffer pointing from offset until end of previous buffer.
+ * Add a Buffer with an offset
+ */
 static VALUE
 buffer_plus(VALUE self, VALUE rbOffset)
 {
@@ -172,12 +200,24 @@ buffer_plus(VALUE self, VALUE rbOffset)
     return slice(self, offset, ptr->memory.size - offset);
 }
 
+/*
+ * call-seq: slice(offset, length)
+ * @param [Numeric] offset
+ * @param [Numeric] length
+ * @return [Buffer] a new instance of Buffer
+ * Slice an existing Buffer.
+ */
 static VALUE
 buffer_slice(VALUE self, VALUE rbOffset, VALUE rbLength)
 {
     return slice(self, NUM2LONG(rbOffset), NUM2LONG(rbLength));
 }
 
+/*
+ * call-seq: inspect
+ * @return [String]
+ * Inspect a Buffer.
+ */
 static VALUE
 buffer_inspect(VALUE self)
 {
@@ -198,6 +238,16 @@ buffer_inspect(VALUE self)
 # define SWAPPED_ORDER LITTLE_ENDIAN
 #endif
 
+/*
+ * Set or get endianness of Buffer.
+ * @overload order
+ *  @return [:big, :little]
+ *  Get endianness of Buffer.
+ * @overload order(order)
+ *  @param [:big, :little, :network] order
+ *  @return [self]
+ *  Set endinaness of Buffer (+:network+ is an alias for +:big+).
+ */
 static VALUE
 buffer_order(int argc, VALUE* argv, VALUE self)
 {
@@ -260,13 +310,36 @@ buffer_mark(Buffer* ptr)
 void
 rbffi_Buffer_Init(VALUE moduleFFI)
 {
+    /*
+     * Document-class: FFI::Buffer < FFI::AbstractMemory
+     *
+     * A Buffer is a function argument type. It should be use with functions playing with C arrays.
+     */
     BufferClass = rb_define_class_under(moduleFFI, "Buffer", rbffi_AbstractMemoryClass);
 
+    /*
+     * Document-variable: FFI::Buffer
+     */
     rb_global_variable(&BufferClass);
     rb_define_alloc_func(BufferClass, buffer_allocate);
 
+    /*
+     * Document-method: alloc_inout
+     * call-seq: alloc_inout(*args)
+     * Create a new Buffer for in and out arguments (alias : <i>new_inout</i>).
+     */
     rb_define_singleton_method(BufferClass, "alloc_inout", buffer_alloc_inout, -1);
+    /*
+     * Document-method: alloc_out
+     * call-seq: alloc_out(*args)
+     * Create a new Buffer for out arguments (alias : <i>new_out</i>).
+     */
     rb_define_singleton_method(BufferClass, "alloc_out", buffer_alloc_inout, -1);
+    /*
+     * Document-method: alloc_in
+     * call-seq: alloc_in(*args)
+     * Create a new Buffer for in arguments (alias : <i>new_in</i>).
+     */
     rb_define_singleton_method(BufferClass, "alloc_in", buffer_alloc_inout, -1);
     rb_define_alias(rb_singleton_class(BufferClass), "new_in", "alloc_in");
     rb_define_alias(rb_singleton_class(BufferClass), "new_out", "alloc_out");

@@ -17,11 +17,19 @@
  * version 3 along with this work.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _MSC_VER
 #include <sys/param.h>
+#endif
 #include <sys/types.h>
 #include <stdio.h>
+#ifndef _MSC_VER
 #include <stdint.h>
 #include <stdbool.h>
+#else
+typedef int bool;
+#define true 1
+#define false 0
+#endif
 #include <errno.h>
 #include <ruby.h>
 
@@ -201,10 +209,22 @@ fntype_param_types(VALUE self)
 void
 rbffi_FunctionInfo_Init(VALUE moduleFFI)
 {
+    /*
+     * Document-class: FFI::FunctionType < FFI::Type
+     */
     rbffi_FunctionTypeClass = rb_define_class_under(moduleFFI, "FunctionType", rbffi_TypeClass);
     rb_global_variable(&rbffi_FunctionTypeClass);
+    /*
+     * Document-const: FFI::CallbackInfo = FFI::FunctionType
+     */
     rb_define_const(moduleFFI, "CallbackInfo", rbffi_FunctionTypeClass);
+    /*
+     * Document-const: FFI::FunctionInfo = FFI::FunctionType
+     */
     rb_define_const(moduleFFI, "FunctionInfo", rbffi_FunctionTypeClass);
+    /*
+     * Document-const: FFI::Type::Function = FFI::FunctionType
+     */
     rb_define_const(rbffi_TypeClass, "Function", rbffi_FunctionTypeClass);
 
     rb_define_alloc_func(rbffi_FunctionTypeClass, fntype_allocate);

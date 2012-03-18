@@ -1,10 +1,13 @@
 #ifndef JFFI_ENDIAN_H
 #define JFFI_ENDIAN_H
 
+#ifndef _MSC_VER
 #include <sys/param.h>
+#endif
+
 #include <sys/types.h>
 
-#if defined(__linux__) || defined(__CYGWIN__)
+#if defined(__linux__) || defined(__CYGWIN__) || defined(__GNU__) || defined(__GLIBC__)
 #  include_next <endian.h>
 #endif
 
